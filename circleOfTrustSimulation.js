@@ -51,9 +51,6 @@ const EVENTS = {
 	REV_FULLY_REVIEWED: 'fullyReviewed'
 };
 
-const EventEmitter = require('events');
-const SCM = new EventEmitter(); // source control as an event emitter
-
 // Entities
 class TeamEntity {
 	constructor(scm) {
@@ -70,17 +67,20 @@ class TeamEntity {
 }
 
 class ProjectManager extends TeamEntity {
+	// responsible for starting the sprint, answering dev task requests and tracking unfinished/completed tasks
 	constructor(scm, todo) {
 		super(scm);
-		this.todo = [] || todo;
+		this.todo = todo || [];
 		this.completed = [];
+		console.log(this.todo);
 
 		//setup scm listeners
-		this.listen(EVENTS.DEV_TASK_REQUEST, assignTask);
-		this.listen(EVENTS.REV_FULLY_REVIEWED, markTaskComplete);
+		this.listen(EVENTS.DEV_TASK_REQUEST, this.assignTask);
+		this.listen(EVENTS.REV_FULLY_REVIEWED, this.markTaskComplete);
 	}
 
 	assignTask(name) {
+		console.log(this.todo, name);
 		if (this.todo.length > 0) {
 			this.emit(EVENTS.DEV_TASK_ASSIGNMENT(name), this.todo.shift());
 		}
@@ -89,9 +89,14 @@ class ProjectManager extends TeamEntity {
 	markTaskComplete(task) {
 		this.completed.push(task);
 	}
+
+	startSprint() {
+		this.emit(EVENTS.START_SPRINT);
+	}
 }
 
 class ReviewerQueue extends TeamEntity {
+	// responsible for dispatching tasks to be reviewed
 	constructor(scm, reviewers) {
 		super(scm)
 		this.reviewerQueue = [];
@@ -116,6 +121,7 @@ class ReviewerQueue extends TeamEntity {
 }
 
 class Reviewer extends TeamEntity {
+	// responsible for reviewing tasks and resubmitting them for review
 	constructor(scm, name) {
 		super(scm);
 		this.assignedTasks = [];
@@ -165,9 +171,14 @@ class Reviewer extends TeamEntity {
 }
 
 class Developer extends TeamEntity {
+	// responsible for completing tasks
 	constructor(scm, name) {
 		super(scm);
 		this.devName = name;
+
+		// bind functions
+		this.performTask = this.performTask.bind(this);
+		this.requestTask = this.requestTask.bind(this);
 
 		// setup scm listeners
 		this.listen(EVENTS.DEV_TASK_ASSIGNMENT(this.devName), this.performTask);
@@ -175,6 +186,7 @@ class Developer extends TeamEntity {
 	}
 
 	requestTask() {
+		console.log(this);
 		this.emit(EVENTS.DEV_TASK_REQUEST, this.devName);
 	}
 
@@ -296,7 +308,66 @@ class Task {
 	}
 }
 
+// Some asci thing to divide the objects and the simulation~
+// *._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.
+// *._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.
+// *._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.
+// *._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.
+// *._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.
+// *._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.
+// *._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.
+// *._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.
+// *._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.*._./^`\.
 
+
+
+// Simulation
+// -- Dependencies
+const EventEmitter = require('events');
+
+function runSimulation(numTasks) {
+	// Create Entities
+	const SCM = new EventEmitter(); // source control as an event emitter
+	Object.values(EVENTS).forEach((event) => {
+		SCM.on(event, () => { console.log(event); });
+	})
+	// -- Create Tasks
+	const projectRoadmap = [];
+	for (let i = 0; i < numTasks; i++) {
+		projectRoadmap.push(new Task());
+	}
+	// -- Create ProjectManager
+	const eliza = new ProjectManager(SCM, projectRoadmap);
+	// -- Create Reviewer entities
+	const reviewerNames = [
+		'hannah',
+		'kim'
+	];
+	const reviewers = [];
+	reviewerNames.forEach((name) => {
+		reviewers.push(new Reviewer(SCM, name));
+	});
+	const reviewDispatcher = new ReviewerQueue(SCM);
+	// -- Create Developers
+	const developerNames = [
+		'elias',
+		'carlos',
+		'lauren'
+	];
+	const developers = [];
+	developerNames.forEach((name) => {
+		developers.push(new Developer(SCM, name));
+	});
+	console.log(developers);
+	// -- Start Sprint
+	eliza.startSprint();
+	setTimeout(() => {
+		console.log('done!');
+		console.log(eliza);
+	}, 1000);
+}
+
+runSimulation(1);
 
 
 
