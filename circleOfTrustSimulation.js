@@ -74,6 +74,10 @@ class ProjectManager extends TeamEntity {
 		this.completed = [];
 		console.log(this.todo);
 
+		// bind functions
+		this.assignTask = this.assignTask.bind(this);
+		this.markTaskComplete = this.markTaskComplete.bind(this);
+
 		//setup scm listeners
 		this.listen(EVENTS.DEV_TASK_REQUEST, this.assignTask);
 		this.listen(EVENTS.REV_FULLY_REVIEWED, this.markTaskComplete);
@@ -101,7 +105,10 @@ class ReviewerQueue extends TeamEntity {
 		super(scm)
 		this.reviewerQueue = [];
 
-		//setup scm listeners
+		// bind functions
+		this.dispatchTaskToReviewer = this.dispatchTaskToReviewer.bind(this);
+
+		// setup scm listeners
 		this.listen(EVENTS.DEV_REVIEW_REQUEST, this.dispatchTaskToReviewer);
 		this.listen(EVENTS.REV_REQUEST_ADDITIONAL_REVIEW, this.dispatchTaskToReviewer);
 	}
@@ -193,7 +200,7 @@ class Developer extends TeamEntity {
 	performTask(task) {
 		task.start();
 		// for each line, roll for a chance of writing a mistake
-		for (let i = 0; i < taskLines(task.points); i++) {
+		for (let lineNumber = 0; lineNumber < taskLines(task.points); lineNumber++) {
 			if (rollForDevError()) {
 				task.addError(lineNumber);
 			}
@@ -275,7 +282,7 @@ class Task {
 	}
 
 	nextState(allowedInitialState, nextState) {
-		if (this.state != initialState) {
+		if (this.state != allowedInitialState) {
 			throw new Error(`cannot transition task from ${this.state} to ${nextState}`);
 		}
 
