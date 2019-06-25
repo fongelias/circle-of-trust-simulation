@@ -11,7 +11,7 @@ const SIM_CONFIG = {
 	TASK: {
 		AVG_LINES_PER_POINT: 100,
 		AVG_POINTS: 5,
-		REVIEWERS_PER_LINE: 300
+		REVIEWERS_PER_LINE: 500
 	},
 	REVIEWER: {
 		ERROR_RATE: 0.05
@@ -31,7 +31,7 @@ const SIM_CONFIG = {
 
 // Random
 const normalDist = (someAverage) => someAverage * (1 + Math.random());
-const rollError = (errorRate) => Math.random() > errorRate;
+const rollError = (errorRate) => Math.random() < errorRate;
 const randTaskPoints = () => normalDist(SIM_CONFIG.TASK.AVG_POINTS);
 const rollForDevError = () => rollError(SIM_CONFIG.DEVELOPER.ERROR_RATE);
 const rollForRevError = () => rollError(SIM_CONFIG.REVIEWER.ERROR_RATE);
@@ -72,7 +72,6 @@ class ProjectManager extends TeamEntity {
 		super(scm);
 		this.todo = todo || [];
 		this.completed = [];
-		console.log(this.todo);
 
 		// bind functions
 		this.assignTask = this.assignTask.bind(this);
@@ -84,7 +83,6 @@ class ProjectManager extends TeamEntity {
 	}
 
 	assignTask(name) {
-		console.log(this.todo, name);
 		if (this.todo.length > 0) {
 			this.emit(EVENTS.DEV_TASK_ASSIGNMENT(name), this.todo.shift());
 		}
@@ -103,7 +101,7 @@ class ReviewerQueue extends TeamEntity {
 	// responsible for dispatching tasks to be reviewed
 	constructor(scm, reviewers) {
 		super(scm)
-		this.reviewerQueue = [];
+		this.reviewerQueue = reviewers || [];
 
 		// bind functions
 		this.dispatchTaskToReviewer = this.dispatchTaskToReviewer.bind(this);
@@ -117,7 +115,7 @@ class ReviewerQueue extends TeamEntity {
 		const reviewer = this.reviewerQueue.shift();
 		// Try to add next reviewer, otherwise dispatch to next reviewer
 		if (!task.hasReviewer(reviewer.revName)) {
-			reviewer.assign(Task);
+			reviewer.assign(task);
 			this.reviewerQueue.push(reviewer);
 		} else {
 			this.reviewerQueue.push(reviewer);
@@ -169,6 +167,7 @@ class Reviewer extends TeamEntity {
 	}
 
 	handleReviewedTask(task) {
+		console.log(task)
 		if (task.isFullyReviewed()) {
 			this.emit(EVENTS.REV_FULLY_REVIEWED, task);
 		} else {
@@ -193,7 +192,6 @@ class Developer extends TeamEntity {
 	}
 
 	requestTask() {
-		console.log(this);
 		this.emit(EVENTS.DEV_TASK_REQUEST, this.devName);
 	}
 
@@ -258,7 +256,8 @@ class Task {
 	}
 
 	isFullyReviewed() {
-		return this.state === TASK.STATE.COMPLETE || requiredReviews(taskLines(this.points)) <= this.reviewedBy.length();
+		return this.state === TASK.STATE.COMPLETE || 
+			(requiredReviews(taskLines(this.points)) <= this.reviewedBy.length());
 	}
 
 	addError(lineNumber) {
@@ -354,7 +353,7 @@ function runSimulation(numTasks) {
 	reviewerNames.forEach((name) => {
 		reviewers.push(new Reviewer(SCM, name));
 	});
-	const reviewDispatcher = new ReviewerQueue(SCM);
+	const reviewDispatcher = new ReviewerQueue(SCM, reviewers);
 	// -- Create Developers
 	const developerNames = [
 		'elias',
@@ -365,7 +364,6 @@ function runSimulation(numTasks) {
 	developerNames.forEach((name) => {
 		developers.push(new Developer(SCM, name));
 	});
-	console.log(developers);
 	// -- Start Sprint
 	eliza.startSprint();
 	setTimeout(() => {
