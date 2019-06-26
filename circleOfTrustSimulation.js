@@ -11,13 +11,13 @@ const SIM_CONFIG = {
 	TASK: {
 		AVG_LINES_PER_POINT: 100,
 		AVG_POINTS: 5,
-		REVIEWERS_PER_LINE: 500
+		LINES_PER_REVIEWER: 500
 	},
 	REVIEWER: {
 		ERROR_RATE: 0.05
 	},
 	DEVELOPER: {
-		ERROR_RATE: 0.10
+		ERROR_RATE: 0.1
 	}
 };
 
@@ -30,7 +30,8 @@ const SIM_CONFIG = {
 // For all random rolls, assume a normal distribution from the mean
 
 // Random
-const normalDist = (someAverage) => someAverage * (1 + Math.random());
+const coinFlip = () => Math.random() > 0.5 ? 1 : -1;
+const normalDist = (someAverage) => someAverage * (1 + coinFlip() * Math.random());
 const rollError = (errorRate) => Math.random() < errorRate;
 const randTaskPoints = () => normalDist(SIM_CONFIG.TASK.AVG_POINTS);
 const rollForDevError = () => rollError(SIM_CONFIG.DEVELOPER.ERROR_RATE);
@@ -38,8 +39,7 @@ const rollForRevError = () => rollError(SIM_CONFIG.REVIEWER.ERROR_RATE);
 
 // Value Definitions
 const taskLines = (taskPoints) => taskPoints * SIM_CONFIG.TASK.AVG_LINES_PER_POINT;
-const requiredReviews = (taskLines) => Math.ceil(taskLines / SIM_CONFIG.TASK.REVIEWERS_PER_LINE);
-
+const requiredReviews = (taskLines) => Math.ceil(taskLines / SIM_CONFIG.TASK.LINES_PER_REVIEWER);
 
 // Events
 const EVENTS = {
@@ -62,7 +62,11 @@ class TeamEntity {
 	}
 
 	listen(event, reaction) {
-		this.scm.on(event, reaction)
+		this.scm.on(event, (val) => {
+			setImmediate(() => {
+				reaction(val);
+			});
+		});
 	}
 }
 
@@ -95,6 +99,38 @@ class ProjectManager extends TeamEntity {
 	startSprint() {
 		this.emit(EVENTS.START_SPRINT);
 	}
+
+	sprintReview() {
+		// Move these computations to this.markTaskComplete in the future
+		const sprintStats = {
+			totalPoints: 0,
+			averagePoints: 0,
+			totalLines: 0,
+			averageLines: 0,
+			totalErrorLines: 0,
+			averageErrorLines: 0,
+			percentError: 0,
+			reviews: 0,
+			averageReviewsPerPr: 0,
+			prsReviewed: 0
+		}
+
+		this.completed.forEach((task) => {
+			sprintStats.totalPoints += task.points;
+			sprintStats.totalErrorLines += task.errorLines.length();
+			sprintStats.reviews += task.reviewedBy.length();
+		});
+
+		sprintStats.averagePoints = sprintStats.totalPoints / this.completed.length;
+		sprintStats.totalLines = taskLines(sprintStats.totalPoints);
+		sprintStats.averageLines = sprintStats.totalLines / this.completed.length;
+		sprintStats.averageErrorLines = sprintStats.totalErrorLines / this.completed.length;
+		sprintStats.percentError = 100 * sprintStats.totalErrorLines / sprintStats.totalLines;
+		sprintStats.averageReviewsPerPr = sprintStats.reviews / this.completed.length;
+		sprintStats.prsReviewed = this.completed.length;
+
+		return sprintStats;
+	}
 }
 
 class ReviewerQueue extends TeamEntity {
@@ -121,7 +157,6 @@ class ReviewerQueue extends TeamEntity {
 			this.reviewerQueue.push(reviewer);
 			this.dispatchTaskToReviewer(task);
 		}
-		
 	}
 }
 
@@ -167,7 +202,6 @@ class Reviewer extends TeamEntity {
 	}
 
 	handleReviewedTask(task) {
-		console.log(task)
 		if (task.isFullyReviewed()) {
 			this.emit(EVENTS.REV_FULLY_REVIEWED, task);
 		} else {
@@ -243,7 +277,7 @@ class Set {
 	}
 
 	length() {
-		return this.values.length;
+		return Object.entries(this.values).length;
 	}
 }
 
@@ -299,16 +333,19 @@ class Task {
 	reviewPR(reviewer) {
 		this.addReviewer(reviewer);
 		// increment numbers of reviews made in this function
-		if (this.state != TASK.STATE.IN_REVIEW) {
-			this.nextState(TASK.STATE.READY_FOR_REVIEW, TASK.STATE.IN_REVIEW);
-		} else if (this.isFullyReviewed()) {
+		if (this.isFullyReviewed()) {
 			this.complete();
+		} else if (this.state != TASK.STATE.IN_REVIEW) {
+			this.nextState(TASK.STATE.READY_FOR_REVIEW, TASK.STATE.IN_REVIEW);
 		}
 	}
 
 	complete() {
 		// steps required to make a transition
 		if (this.isFullyReviewed()) {
+			if (this.state == TASK.STATE.READY_FOR_REVIEW) {
+				this.nextState(TASK.STATE.READY_FOR_REVIEW, TASK.STATE.IN_REVIEW);
+			}
 			this.nextState(TASK.STATE.IN_REVIEW, TASK.STATE.COMPLETE);
 		}
 	}
@@ -347,7 +384,7 @@ function runSimulation(numTasks) {
 	// -- Create Reviewer entities
 	const reviewerNames = [
 		'hannah',
-		'kim'
+		'kim',
 	];
 	const reviewers = [];
 	reviewerNames.forEach((name) => {
@@ -358,7 +395,8 @@ function runSimulation(numTasks) {
 	const developerNames = [
 		'elias',
 		'carlos',
-		'lauren'
+		'lauren',
+		'cody'
 	];
 	const developers = [];
 	developerNames.forEach((name) => {
@@ -368,11 +406,13 @@ function runSimulation(numTasks) {
 	eliza.startSprint();
 	setTimeout(() => {
 		console.log('done!');
-		console.log(eliza);
+		console.log(eliza.sprintReview());
+		SCM.removeAllListeners();
 	}, 1000);
+	
 }
 
-runSimulation(1);
+runSimulation(10000);
 
 
 
