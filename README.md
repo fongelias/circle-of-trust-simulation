@@ -16,4 +16,7 @@ How many code owners do we need per section of code?
  - Imperfect developers: they make mistakes x% of the time
  - Time for review: how long does it take to review T tasks with R reviewers?
  - Time to review: how long does it take for a review to begin?
- - Mistakes are only merged if all reviewers miss it
+ 
+## Issues
+After running some tests, it appears that there is a major issue that needs correcting. The tasks need to be set on some external clock, rather than by the whims of the environment its run on. The simulation should generate some sort of consistent schedule and estimate.
+
